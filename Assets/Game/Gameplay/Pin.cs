@@ -1,4 +1,5 @@
 ﻿using DG.Tweening;
+using Funzilla;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -6,9 +7,17 @@ using UnityEngine;
 [System.Serializable]
 public class Pin : MonoBehaviour
 {
-    public List<Pin> innerPins = new List<Pin>();
-    public List<Pin> frontPins = new List<Pin>();
-    public List<Pin> dependencePins = new List<Pin>();
+    internal int pinId;
+    public PinType type;
+
+    public List<int> innerPins = new List<int>();
+    public List<int> frontPins = new List<int>();
+    public List<int> dependencePins = new List<int>();
+
+    [SerializeField] internal int size = 1;
+    [SerializeField] float backChangePerSize = -0.6f;
+    [SerializeField] List<GameObject> sizeObjs = new List<GameObject>();
+    [SerializeField] Transform checkPos;
 
     bool isSelecting;
     Vector3 originalPosition;
@@ -22,6 +31,8 @@ public class Pin : MonoBehaviour
 
     [SerializeField] Vector3 frontCheckBoxCenterOffset;
     [SerializeField] Vector3 frontCheckBoxSize;
+
+    internal Level curLevel;
     private void Start()
     {
         RunningInit();
@@ -30,19 +41,30 @@ public class Pin : MonoBehaviour
     {
         originalPosition = stopPoint = transform.position;
     }
-    internal void Init()
+    void HandlePinSize()
     {
+        sizeObjs[size - 1].SetActive(true);
+        checkPos.transform.localPosition = new Vector3(checkPos.transform.localPosition.x, checkPos.transform.localPosition.y, checkPos.transform.localPosition.z + backChangePerSize * (size - 1) * 0.5f);
+        innerCheckBoxCenterOffset = new Vector3(innerCheckBoxCenterOffset.x, innerCheckBoxCenterOffset.y, innerCheckBoxCenterOffset.z * size);
+        innerCheckBoxSize = new Vector3(innerCheckBoxSize.x, innerCheckBoxSize.y, innerCheckBoxSize.z * size);
+    }
+    internal void Init(Level level)
+    {
+        curLevel = level;
         GetLinkedPin();
     }
         
     internal void MouseDown()
     {
         isSelecting = true;
-        Vibrate();
+        if (!vibrating)
+            StartCoroutine(Vibrate());
     }
     internal void MouseUp()
     {
-        isSelecting = false;
+        if (!isSelecting)
+            return;
+
         int checkPinOutResult = CanPinOut();
         //check pin out
         if(checkPinOutResult == 0)
@@ -53,27 +75,36 @@ public class Pin : MonoBehaviour
         {
             //do something when cant move
             StartCoroutine(MoveWrongAndGetBack(checkPinOutResult == 1));
-        }    
+        }
+        isSelecting = false;
     }
     internal void MouseExit()
     {
         isSelecting = false;
     }
-    void Vibrate()
+    bool vibrating = false;
+    IEnumerator Vibrate()
     {
-        //vibrate
+        vibrating = true;
         while(isSelecting)
         {
-            float xOffset = Mathf.Sin(Time.time * GlobalDefine.shakeFrequency) * GlobalDefine.shakeAmplitude;
-            float yOffset = Mathf.Sin(Time.time * GlobalDefine.shakeFrequency) * GlobalDefine.shakeAmplitude;
+            // Rung ngẫu nhiên trong khoảng nhỏ xung quanh vị trí ban đầu
+            float offsetX = Random.Range(-GlobalDefine.VibrateIntensity, GlobalDefine.VibrateIntensity); // Điều chỉnh giá trị này để tăng/giảm độ rung
+            float offsetY = Random.Range(-GlobalDefine.VibrateIntensity, GlobalDefine.VibrateIntensity);
+            float offsetZ = Random.Range(-GlobalDefine.VibrateIntensity, GlobalDefine.VibrateIntensity);
 
-            transform.position = originalPosition + new Vector3(xOffset, yOffset, 0);
+            // Cập nhật vị trí rung cho đối tượng
+            transform.localPosition = originalPosition + new Vector3(offsetX, offsetY, offsetZ);
+
+            // Đợi một khung hình trước khi tiếp tục
+            yield return null;
         }
         Normalize();
     }
     void Normalize()
     {
         transform.position = originalPosition;
+        vibrating = false;
     }  
     int CanPinOut()
     {
@@ -95,7 +126,7 @@ public class Pin : MonoBehaviour
         Vector3 targetPosition = transform.position + transform.forward * 10.0f;
 
         float distance = Vector3.Distance(transform.position, targetPosition);
-        float moveDuration = distance / GlobalDefine.pinMoveSpeed;
+        float moveDuration = distance / GlobalDefine.PinMoveSpeed;
 
         Sequence seq = DOTween.Sequence();
         seq.Append(transform.DOMove(targetPosition, moveDuration).SetEase(Ease.OutCubic));
@@ -108,7 +139,7 @@ public class Pin : MonoBehaviour
         Vector3 targetPosition = wrongIn ? (originalPosition + (stopPoint - innerPos.position)) : (originalPosition + (stopPoint - outPos.position));
 
         float distance = Vector3.Distance(transform.position, targetPosition);
-        float moveDuration = distance / GlobalDefine.pinMoveSpeed;
+        float moveDuration = distance / GlobalDefine.PinMoveSpeed;
 
         Sequence seq = DOTween.Sequence();
         seq.Append(transform.DOMove(targetPosition, moveDuration).SetEase(Ease.OutCubic));
@@ -121,47 +152,51 @@ public class Pin : MonoBehaviour
     void GetLinkedPin()
     {
         //Get inner
-        Collider[] hitColliders = Physics.OverlapBox(innerPos.position + innerCheckBoxCenterOffset, innerCheckBoxSize / 2, Quaternion.identity);
+        Collider[] hitColliders = Physics.OverlapBox(innerPos.position + transform.rotation * innerCheckBoxCenterOffset, innerCheckBoxSize / 2, transform.rotation);
         foreach (Collider hitCollider in hitColliders)
         {
             Pin hitPin = hitCollider.gameObject.GetComponentInParent<Pin>();
-            if (hitPin == null || innerPins.Contains(hitPin))
+            if (hitPin == null || innerPins.Contains(hitPin.pinId) || hitPin == this)
                 continue;
 
-            if (!hitPin.dependencePins.Contains(this))
-                hitPin.dependencePins.Add(this);
-            innerPins.Add(hitPin);
+            if (!hitPin.dependencePins.Contains(pinId))
+                hitPin.dependencePins.Add(pinId);
+            innerPins.Add(hitPin.pinId);
         }
 
         //Get front
-        Collider[] hitOutColliders = Physics.OverlapBox(outPos.position + frontCheckBoxCenterOffset, frontCheckBoxSize / 2, Quaternion.identity);
+        Collider[] hitOutColliders = Physics.OverlapBox(outPos.position + transform.rotation * frontCheckBoxCenterOffset, frontCheckBoxSize / 2, transform.rotation);
         foreach (Collider hitCollider in hitOutColliders)
         {
             Pin hitPin = hitCollider.gameObject.GetComponentInParent<Pin>();
-            if (hitPin == null || innerPins.Contains(hitPin))
+            if (hitPin == null || innerPins.Contains(hitPin.pinId))
                 continue;
 
-            if (!hitPin.dependencePins.Contains(this))
-                hitPin.dependencePins.Add(this);
-            frontPins.Add(hitPin);
+            if (!hitPin.dependencePins.Contains(pinId))
+                hitPin.dependencePins.Add(pinId);
+            frontPins.Add(pinId);
         }
-    }  
+    } 
     internal void OnRemove()
     {
         if(dependencePins.Count > 0)
         {
-            foreach(Pin pin in dependencePins)
+            foreach(int pinId in dependencePins)
             {
-                if (pin.innerPins.Contains(this))
-                    pin.innerPins.Remove(this);
-                else if (pin.frontPins.Contains(this))
-                    pin.frontPins.Remove(this);
+                if (pinId < 0 || curLevel.pins.Count <= pinId)
+                    continue;
+
+                Pin pin = curLevel.pins[pinId];
+                if (pin.innerPins.Contains(pinId))
+                    pin.innerPins.Remove(pinId);
+                else if (pin.frontPins.Contains(pinId))
+                    pin.frontPins.Remove(pinId);
             }
         }
 
         Destroy(gameObject);
     }
-    internal void ClearAllPins()
+    internal void ClearAllLinkedPins()
     {
         innerPins.Clear();
         frontPins.Clear();
@@ -172,8 +207,9 @@ public class Pin : MonoBehaviour
         float minDis = Mathf.Infinity;
         if (innerPins.Count > 0)
         {
-            foreach(Pin pin in innerPins)
+            foreach(int pinId in innerPins)
             {
+                Pin pin = curLevel.pins[pinId];
                 Vector3 point = Calculate.GetProjectionOnPlane(pin.transform.position, innerPos.position, innerPos.up);
                 float distance = GetDistanceToInnerPins(innerPos.position, point);
                 if(distance < minDis)
@@ -185,8 +221,9 @@ public class Pin : MonoBehaviour
         }
         else if(frontPins.Count > 0)
         {
-            foreach (Pin pin in frontPins)
+            foreach (int pinId in frontPins)
             {
+                Pin pin = curLevel.pins[pinId];
                 Vector3 point = Calculate.GetProjectionOnPlane(pin.transform.position, outPos.position, outPos.up);
                 float distance = GetDistanceToInnerPins(outPos.position, point); //TODO: replace by out
 
@@ -219,5 +256,28 @@ public class Pin : MonoBehaviour
             // Nếu không va chạm, trả về khoảng cách từ point đến pinPosOnCurPlane
             return Vector3.Distance(point, pinPosOnCurPlane);
         }
-    }    
+    }
+    void OnDrawGizmos()
+    {
+        Vector3 innerOffsetWorld = transform.rotation * innerCheckBoxCenterOffset;
+        Vector3 frontOffsetWorld = transform.rotation * frontCheckBoxCenterOffset;
+
+        // Vẽ inner check box với offset đã được tính toán theo local
+        Gizmos.color = Color.green;
+        Matrix4x4 innerRotationMatrix = Matrix4x4.TRS(checkPos.position + innerOffsetWorld, transform.rotation, Vector3.one);
+        Gizmos.matrix = innerRotationMatrix;
+        Gizmos.DrawWireCube(Vector3.zero, innerCheckBoxSize);
+
+        // Vẽ front check box với offset đã được tính toán theo local
+        Gizmos.color = Color.red;
+        Matrix4x4 frontRotationMatrix = Matrix4x4.TRS(outPos.position + frontOffsetWorld, transform.rotation, Vector3.one);
+        Gizmos.matrix = frontRotationMatrix;
+        Gizmos.DrawWireCube(Vector3.zero, frontCheckBoxSize);
+    }
+}
+
+[System.Serializable]
+public enum PinType
+{
+    Single = 0,
 }

@@ -1,0 +1,35 @@
+{
+    "levelId": "001",
+    "pins": [
+        {
+            "pinId": 0,
+            "pinType": 0,
+            "posX": -0.5,
+            "posY": 0.0,
+            "posZ": -2.0,
+            "rotX": 270.0,
+            "rotY": 180.0,
+            "rotZ": 0.0,
+            "innerPins": [
+                1
+            ],
+            "frontPins": [],
+            "dependencePins": []
+        },
+        {
+            "pinId": 1,
+            "pinType": 0,
+            "posX": -0.5,
+            "posY": 0.0,
+            "posZ": -2.0,
+            "rotX": 0.0,
+            "rotY": 180.0,
+            "rotZ": 90.0,
+            "innerPins": [],
+            "frontPins": [],
+            "dependencePins": [
+                0
+            ]
+        }
+    ]
+}
