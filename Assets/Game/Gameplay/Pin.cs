@@ -41,7 +41,7 @@ public class Pin : MonoBehaviour
     {
         originalPosition = stopPoint = transform.position;
     }
-    void HandlePinSize()
+    internal void HandlePinSize()
     {
         sizeObjs[size - 1].SetActive(true);
         checkPos.transform.localPosition = new Vector3(checkPos.transform.localPosition.x, checkPos.transform.localPosition.y, checkPos.transform.localPosition.z + backChangePerSize * (size - 1) * 0.5f);

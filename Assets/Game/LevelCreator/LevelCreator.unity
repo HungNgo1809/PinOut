@@ -2126,6 +2126,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   curPinType: 0
   level: {fileID: 387743191}
+  pinSize: 1
 --- !u!1 &1836739792
 GameObject:
   m_ObjectHideFlags: 0

@@ -53,6 +53,7 @@ namespace Funzilla
             Pin newPin = Instantiate(level.pinsPrefab[(int)curPinType], level.transform);
             newPin.pinId = createdPins.Count;
             newPin.size = pinSize;
+            newPin.HandlePinSize();
 
             curPin = newPin;
             createdPins.Add(newPin);
